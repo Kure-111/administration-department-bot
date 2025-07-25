@@ -1,0 +1,16 @@
+{
+  "name": "administration-department-bot",
+  "version": "1.0.0",
+  "description": "Discord bot for administration department",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.3.1"
+  },
+  "author": "",
+  "license": "MIT"
+}

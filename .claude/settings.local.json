@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(rm:*)",
+      "Bash(mkdir:*)",
+      "Bash(node deploy-commands.js)",
+      "Bash(npm start)"
+    ],
+    "deny": []
+  }
+}
