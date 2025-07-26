@@ -113,13 +113,13 @@ function extractCallerUserId(message) {
     if (message.embeds.length > 0) {
         const embed = message.embeds[0];
         
-        // フィールドから呼び出し者IDを探す
+        // フィールドからDiscord IDを探す（優先）
         if (embed.fields && embed.fields.length > 0) {
-            const callerField = embed.fields.find(field => 
-                field.name.includes('呼び出し者') || field.name.includes('👤')
+            const discordIdField = embed.fields.find(field => 
+                field.name.includes('Discord ID') || field.name.toLowerCase().includes('discord id')
             );
-            if (callerField) {
-                const idValue = callerField.value.trim();
+            if (discordIdField) {
+                const idValue = discordIdField.value.trim();
                 // 数字のみの場合はユーザーID、メンション形式の場合はIDを抽出
                 if (/^\d+$/.test(idValue)) {
                     callerUserId = idValue;
@@ -130,20 +130,55 @@ function extractCallerUserId(message) {
                     }
                 }
             }
+            
+            // Discord IDが見つからない場合、従来の呼び出し者フィールドを探す
+            if (!callerUserId) {
+                const callerField = embed.fields.find(field => 
+                    field.name.includes('呼び出し者') || field.name.includes('👤')
+                );
+                if (callerField) {
+                    const idValue = callerField.value.trim();
+                    // 数字のみの場合はユーザーID、メンション形式の場合はIDを抽出
+                    if (/^\d+$/.test(idValue)) {
+                        callerUserId = idValue;
+                    } else if (idValue.includes('<@')) {
+                        const idMatch = idValue.match(/<@!?(\d+)>/);
+                        if (idMatch) {
+                            callerUserId = idMatch[1];
+                        }
+                    }
+                }
+            }
         }
         
-        // 説明文から呼び出し者IDを抽出（パターンマッチング）
+        // 説明文から呼び出し者IDを抽出（フィールドで見つからない場合）
         if (!callerUserId && embed.description) {
-            const callerMatch = embed.description.match(/(?:呼び出し者|👤[^:]*[:：])\s*([^\n\r]+)/);
-            if (callerMatch) {
-                const idValue = callerMatch[1].trim();
-                // 数字のみの場合はユーザーID、メンション形式の場合はIDを抽出
+            // Discord IDパターンを優先
+            const discordIdMatch = embed.description.match(/(?:Discord ID|discord id)[^:]*[:：]\s*([^\n\r]+)/i);
+            if (discordIdMatch) {
+                const idValue = discordIdMatch[1].trim();
                 if (/^\d+$/.test(idValue)) {
                     callerUserId = idValue;
                 } else if (idValue.includes('<@')) {
                     const idMatch = idValue.match(/<@!?(\d+)>/);
                     if (idMatch) {
                         callerUserId = idMatch[1];
+                    }
+                }
+            }
+            
+            // 従来の呼び出し者パターンで検索
+            if (!callerUserId) {
+                const callerMatch = embed.description.match(/(?:呼び出し者|👤[^:]*[:：])\s*([^\n\r]+)/);
+                if (callerMatch) {
+                    const idValue = callerMatch[1].trim();
+                    if (/^\d+$/.test(idValue)) {
+                        callerUserId = idValue;
+                    } else if (idValue.includes('<@')) {
+                        const idMatch = idValue.match(/<@!?(\d+)>/);
+                        if (idMatch) {
+                            callerUserId = idMatch[1];
+                        }
                     }
                 }
             }
@@ -152,16 +187,32 @@ function extractCallerUserId(message) {
     
     // 通常のメッセージから呼び出し者IDを抽出
     if (!callerUserId && message.content) {
-        const callerMatch = message.content.match(/(?:呼び出し者|👤[^:]*[:：])\s*([^\n\r]+)/);
-        if (callerMatch) {
-            const idValue = callerMatch[1].trim();
-            // 数字のみの場合はユーザーID、メンション形式の場合はIDを抽出
+        // Discord IDパターンを優先
+        const discordIdMatch = message.content.match(/(?:Discord ID|discord id)[^:]*[:：]\s*([^\n\r]+)/i);
+        if (discordIdMatch) {
+            const idValue = discordIdMatch[1].trim();
             if (/^\d+$/.test(idValue)) {
                 callerUserId = idValue;
             } else if (idValue.includes('<@')) {
                 const idMatch = idValue.match(/<@!?(\d+)>/);
                 if (idMatch) {
                     callerUserId = idMatch[1];
+                }
+            }
+        }
+        
+        // 従来の呼び出し者パターンで検索
+        if (!callerUserId) {
+            const callerMatch = message.content.match(/(?:呼び出し者|👤[^:]*[:：])\s*([^\n\r]+)/);
+            if (callerMatch) {
+                const idValue = callerMatch[1].trim();
+                if (/^\d+$/.test(idValue)) {
+                    callerUserId = idValue;
+                } else if (idValue.includes('<@')) {
+                    const idMatch = idValue.match(/<@!?(\d+)>/);
+                    if (idMatch) {
+                        callerUserId = idMatch[1];
+                    }
                 }
             }
         }
@@ -245,12 +296,44 @@ client.on('messageReactionAdd', async (reaction, user) => {
                     responseMessage += `\n\n<@${callerUserId}> 対応者が決まりました！`;
                 }
                 
-                await message.channel.send({
+                // 対応通知メッセージを送信
+                const responseMsg = await message.channel.send({
                     content: responseMessage,
                     allowedMentions: { 
                         users: allowedUsers
                     }
                 });
+                
+                // プライベートスレッドを作成
+                try {
+                    const thread = await responseMsg.startThread({
+                        name: `緊急対応 - ${user.displayName || user.username}`,
+                        type: 12, // GUILD_PRIVATE_THREAD
+                        reason: '緊急呼び出し対応用プライベートスレッド'
+                    });
+                    
+                    // 対応者をスレッドに追加
+                    await thread.members.add(user.id);
+                    
+                    // 呼び出し者をスレッドに追加（異なるユーザーの場合のみ）
+                    if (callerUserId && callerUserId !== user.id) {
+                        await thread.members.add(callerUserId);
+                    }
+                    
+                    // スレッド内に初期メッセージを送信
+                    await thread.send({
+                        content: `🔒 **対応者専用スレッド** 🔒\n対応者: ${user}\n${callerUserId ? `呼び出し者: <@${callerUserId}>` : ''}\n\nこちらで詳細な連絡を取り合ってください。`,
+                        allowedMentions: { 
+                            users: allowedUsers
+                        }
+                    });
+                    
+                    console.log(`Private thread created: ${thread.name} (ID: ${thread.id})`);
+                } catch (threadError) {
+                    console.error('Error creating private thread:', threadError);
+                    // スレッド作成に失敗してもメイン機能は継続
+                }
+                
             } catch (error) {
                 console.error('Error sending response message:', error);
             }
