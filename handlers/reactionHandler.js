@@ -5,6 +5,7 @@
 const { isEmergencyMessage } = require('../utils/messageDetector');
 const { extractCallerUserId } = require('../utils/userIdExtractor');
 const { createPrivateThread } = require('../utils/threadManager');
+const { recordResponse } = require('../utils/statsTracker');
 
 /**
  * リアクション追跡用のマップ
@@ -58,6 +59,9 @@ async function handleReactionAdd(reaction, user, client) {
             username: user.displayName || user.username,
             timestamp: new Date()
         });
+        
+        // 統計を記録
+        recordResponse(user.id, user.displayName || user.username);
         
         // 対応処理を実行
         await handleEmergencyResponse(message, user, client);
