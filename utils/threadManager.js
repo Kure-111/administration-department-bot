@@ -11,9 +11,9 @@
  */
 async function createPrivateThread(responseMessage, responder, callerUserId) {
     try {
-        // プライベートスレッドを作成
+        // プライベートスレッドを作成（サーバーでの表示名を使用）
         const thread = await responseMessage.startThread({
-            name: `緊急対応 - ${responder.displayName || responder.username}`,
+            name: `緊急対応 - ${responder.displayName}`,
             type: 12, // GUILD_PRIVATE_THREAD
             reason: '緊急呼び出し対応用プライベートスレッド'
         });
@@ -61,7 +61,7 @@ function createThreadWelcomeMessage(responder, callerUserId) {
         message += `\n呼び出し者: <@${callerUserId}>`;
     }
     
-    message += `\n\nこちらで詳細な連絡を取り合ってください。`;
+    message += `\n\n必要な場合はお使いください。`;
     
     return message;
 }

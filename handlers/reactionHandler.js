@@ -5,7 +5,8 @@
 const { isEmergencyMessage } = require('../utils/messageDetector');
 const { extractCallerUserId } = require('../utils/userIdExtractor');
 const { createPrivateThread } = require('../utils/threadManager');
-const { recordResponse } = require('../utils/statsTracker');
+const { recordEmergencyResponse } = require('../utils/emergencyDatabase');
+const { parseEmergencyMessage } = require('../utils/emergencyParser');
 
 /**
  * リアクション追跡用のマップ
@@ -60,9 +61,6 @@ async function handleReactionAdd(reaction, user, client) {
             timestamp: new Date()
         });
         
-        // 統計を記録
-        recordResponse(user.id, user.displayName || user.username);
-        
         // 対応処理を実行
         await handleEmergencyResponse(message, user, client);
     }
@@ -78,7 +76,25 @@ async function handleEmergencyResponse(message, responder, client) {
     // 呼び出し者のユーザーIDを抽出
     const callerUserId = extractCallerUserId(message);
     
+    // 緊急呼び出しメッセージから詳細情報を抽出
+    const emergencyInfo = parseEmergencyMessage(message);
+    
     try {
+        // Supabaseに対応記録を保存
+        const dbRecord = await recordEmergencyResponse(
+            emergencyInfo.callerName,
+            emergencyInfo.location,
+            emergencyInfo.contactType,
+            responder.id,
+            responder.displayName || responder.username
+        );
+        
+        if (dbRecord) {
+            console.log(`Emergency response recorded in database: ID ${dbRecord.id}`);
+        } else {
+            console.warn('Failed to record emergency response in database');
+        }
+        
         // 対応通知メッセージを作成・送信
         const responseMessage = createResponseMessage(responder, callerUserId);
         const allowedUsers = getAllowedUsers(responder.id, callerUserId);
