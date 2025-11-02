@@ -12,6 +12,7 @@ require('dotenv').config();
 const { handleMessageCreate } = require('./handlers/messageHandler');
 const { handleReactionAdd } = require('./handlers/reactionHandler');
 const { handleInteractionCreate } = require('./handlers/commandHandler');
+const { handleSheetsMessage } = require('./handlers/sheetsMessageHandler');
 
 // Discordクライアントを初期化
 const client = new Client({ 
@@ -85,6 +86,7 @@ client.once('ready', () => {
  */
 client.on('messageCreate', async (message) => {
     await handleMessageCreate(message, client);
+    await handleSheetsMessage(message);
 });
 
 /**
